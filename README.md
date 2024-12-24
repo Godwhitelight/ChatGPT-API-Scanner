@@ -69,6 +69,31 @@ Ensure you have the following installed on your system:
 
 That's it! The script will now scan GitHub for available OpenAI API Keys.
 
+## Command Line Arguments
+
+The script supports several command line arguments for customization:
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--from-iter` | Start scanning from a specific iteration | `None` |
+| `--debug` | Enable debug mode for detailed logging | `False` |
+| `-ceko, --check-existed-keys-only` | Only check existing keys in the database | `False` |
+| `-k, --keywords` | Specify a list of search keywords | Default keyword list |
+| `-l, --languages` | Specify a list of programming languages to search | Default language list |
+
+Examples:
+
+```bash
+# Start scanning from iteration 100
+python3 src/main.py --from-iter 100
+
+# Only check existing keys
+python3 src/main.py --check-existed-keys-only
+
+# Use custom keywords and languages
+python3 src/main.py -k "openai" "chatgpt" -l python javascript
+```
+
 ## Results
 
 The results are stored in the `github.db` SQLite database, which is created in the same directory as the script.
@@ -101,8 +126,6 @@ You can view the contents of this database using any SQLite database browser of 
     Result stored in SQLite (different API Key status)
   </p>
 </figure>
-
-
 
 ## FAQ
 
