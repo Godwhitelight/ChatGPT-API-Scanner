@@ -87,7 +87,7 @@ REGEX_LIST = [
     # Old Project API Key
     (re.compile(r"sk-proj-[A-Za-z0-9-_]{58}T3BlbkFJ[A-Za-z0-9-_]{58}"), True, True),
     # Service Account Key
-    (re.compile(r"sk-svcacct-[A-Za-z0-9-_]+T3BlbkFJ[A-Za-z0-9-_]+"), False, False),
+    (re.compile(r"sk-svcacct-[A-Za-z0-9-_]\+T3BlbkFJ[A-Za-z0-9-_]+"), False, False),
     (re.compile(r"sk-proj-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}"), True, False),
     # Old key format (deprecated by OpenAI)
     (re.compile(r"sk-[a-zA-Z0-9]{48}"), True, False),

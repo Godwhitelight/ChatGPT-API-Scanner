@@ -1,8 +1,8 @@
 # ChatGPT-API-Scanner
 
 This tool scans GitHub for available OpenAI API Keys.
-![](https://private-user-images.githubusercontent.com/14367694/339697779-8a4aa293-f55e-4db9-955c-d62b97879a69.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MjQyNDQ5NzksIm5iZiI6MTcyNDI0NDY3OSwicGF0aCI6Ii8xNDM2NzY5NC8zMzk2OTc3NzktOGE0YWEyOTMtZjU1ZS00ZGI5LTk1NWMtZDYyYjk3ODc5YTY5LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNDA4MjElMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjQwODIxVDEyNTExOVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWMxNTYzNDBlZDg0YWM2NjNhOTEyNWI0YTlhNzAxYjliZjQ3MDA1NTNhZTBlM2U5Y2FjNTQ1Y2M2NjE5MzRiYWUmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JmFjdG9yX2lkPTAma2V5X2lkPTAmcmVwb19pZD0wIn0.0rUodw1AwTJoKc5BrXtEnK6koFKdTNtUy0xhiMhRlKY)
-![Result Demo 1](pics/db1.png)
+
+![Result Demo 1](pics/demo.png)
 
 > [!NOTE]
 > As of `August 21, 2024`, GitHub has enabled push protection to prevent API key leakage, which could significantly impact this repository.
@@ -107,16 +107,7 @@ You can view the contents of this database using any SQLite database browser of 
 
 <figure>
   <img
-  src="pics/db1.png"
-  alt="Result in DB">
-  <p align="center">
-    Result stored in SQLite (available API Keys)
-  </p>
-</figure>
-
-<figure>
-  <img
-  src="pics/db2.png"
+  src="pics/db.png"
   alt="Result in DB">
   <p align="center">
     Result stored in SQLite (different API Key status)
