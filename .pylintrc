@@ -1,2 +1,8 @@
 [FORMAT]
 max-line-length=200
+
+[MASTER]
+extension-pkg-whitelist=tqdm,selenium,rich,openai
+
+[TYPECHECK]
+ignored-modules=tqdm,selenium,rich,openai
