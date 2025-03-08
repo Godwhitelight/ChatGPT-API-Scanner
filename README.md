@@ -17,10 +17,6 @@ This tool scans GitHub for available OpenAI API Keys.
 > THIS PROJECT IS ONLY FOR ***SECURITY RESEARCH*** AND REMINDS OTHERS TO PROTECT THEIR PROPERTY, DO NOT USE IT ILLEGALLY!!
 >
 > The project authors are not responsible for any consequences resulting from misuse.
->
-> 本项目仅用于安全研究以及提醒人们注意保护个人信息，本项目禁止用于任何违法用途！！
->
-> 项目作者不对任何滥用导致的后果负责。
 
 ## Keeping Your API Key Safe
 
