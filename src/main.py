@@ -33,14 +33,13 @@ class APIKeyLeakageScanner:
 
     def __init__(self, db_file: str, keywords: list, languages: list):
         self.db_file = db_file
-        self.progress = ProgressManager()
         self.driver: webdriver.Chrome | None = None
         self.cookies: CookieManager | None = None
         rich.print(f"📂 Opening database file {self.db_file}")
 
         self.dbmgr = DatabaseManager(self.db_file)
 
-        # self.keywords = keywords
+        self.keywords = keywords
         self.languages = languages
         self.candidate_urls = []
         for regex, too_many_results, _ in REGEX_LIST:
@@ -82,6 +81,38 @@ class APIKeyLeakageScanner:
 
         self.cookies.verify_user_login()
 
+    def _expand_all_code(self):
+        """
+        Expand all the code in the current page
+        """
+        elements = self.driver.find_elements(by=By.XPATH, value="//*[contains(text(), 'more match')]")
+        for element in elements:
+            element.click()
+
+    def _find_urls_and_apis(self) -> tuple[list[str], list[str]]:
+        """
+        Find all the urls and apis in the current page
+        """
+        apis_found = []
+        urls_need_expand = []
+
+        codes = self.driver.find_elements(by=By.CLASS_NAME, value="code-list")  # type: ignore
+        for element in codes:
+            apis = []
+            # Check all regex for each code block
+            for regex, _, too_long in REGEX_LIST[2:]:
+                if not too_long:
+                    apis.extend(regex.findall(element.text))
+
+            if len(apis) == 0:
+                # Need to show full code. (because the api key is too long)
+                # get the <a> tag
+                a_tag = element.find_element(by=By.XPATH, value=".//a")
+                urls_need_expand.append(a_tag.get_attribute("href"))
+            apis_found.extend(apis)
+
+        return apis_found, urls_need_expand
+
     def _process_url(self, url: str):
         """
         Process a search query url
@@ -90,8 +121,6 @@ class APIKeyLeakageScanner:
             raise ValueError("Driver is not initialized")
 
         self.driver.get(url)
-        apis_found = []
-        urls_need_expand = []
 
         while True:  # Loop until all the pages are processed
             # If current webpage is reached the rate limit, then wait for 30 seconds
@@ -101,46 +130,33 @@ class APIKeyLeakageScanner:
                 self.driver.refresh()
                 continue
 
-            # Expand all the code
-            elements = self.driver.find_elements(by=By.XPATH, value="//*[contains(text(), 'more match')]")
-            for element in elements:
-                element.click()
+            self._expand_all_code()
 
-            # find all elements with class name 'f4'
-            codes = self.driver.find_elements(by=By.CLASS_NAME, value="code-list")
-            for element in codes:
-                apis = []
-                # Check all regex for each code block
-                for regex, _, too_long in REGEX_LIST[2:]:
-                    if not too_long:
-                        apis.extend(regex.findall(element.text))
-
-                if len(apis) == 0:
-                    # Need to show full code. (because the api key is too long)
-                    # get the <a> tag
-                    a_tag = element.find_element(by=By.XPATH, value=".//a")
-                    urls_need_expand.append(a_tag.get_attribute("href"))
-                apis_found.extend(apis)
-
-            rich.print(f"🌕 There are {len(urls_need_expand)} urls waiting to be expanded")
+            apis_found, urls_need_expand = self._find_urls_and_apis()
+            rich.print(f"    🌕 There are {len(urls_need_expand)} urls waiting to be expanded")
 
             try:
                 next_buttons = self.driver.find_elements(by=By.XPATH, value="//a[@aria-label='Next Page']")
-                rich.print("    🔍 Clicking next page")
+                rich.print("🔍 Clicking next page")
                 WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.XPATH, "//a[@aria-label='Next Page']")))
                 next_buttons = self.driver.find_elements(by=By.XPATH, value="//a[@aria-label='Next Page']")
                 next_buttons[0].click()
-            except Exception:
-                rich.print("    ⚪️ No more pages")
+            except Exception:  # pylint: disable=broad-except
+                rich.print("⚪️ No more pages")
                 break
 
         # Handle the expand_urls
-        for url in tqdm(urls_need_expand, desc="🔍 Expanding URLs ..."):
+        for u in tqdm(urls_need_expand, desc="🔍 Expanding URLs ..."):
             if self.driver is None:
                 raise ValueError("Driver is not initialized")
 
-            self.driver.get(url)
-            time.sleep(3)  # TODO: find a better way to wait for the page to load
+            with self.dbmgr as mgr:
+                if mgr.get_url(u):
+                    rich.print(f"    🔑 skipping url '{u[:10]}...{u[-10:]}'")
+                    continue
+
+            self.driver.get(u)
+            time.sleep(3)  # TODO: find a better way to wait for the page to load # pylint: disable=fixme
 
             retry = 0
             while retry <= 3:
@@ -159,9 +175,12 @@ class APIKeyLeakageScanner:
                     new_apis = [api for api in matches if not mgr.key_exists(api)]
                     new_apis = list(set(new_apis))
                 apis_found.extend(new_apis)
-                rich.print(f"    🟢 Found {len(matches)} matches in the expanded page, adding them to the list")
+                rich.print(f"    🔬 Found {len(matches)} matches in the expanded page, adding them to the list")
                 for match in matches:
-                    rich.print(f"        '{match}'")
+                    rich.print(f"        '{match[:10]}...{match[-10:]}'")
+
+                with self.dbmgr as mgr:
+                    mgr.insert_url(url)
                 break
 
         self.check_api_keys_and_save(apis_found)
@@ -184,15 +203,15 @@ class APIKeyLeakageScanner:
         """
         Search for API keys, and save the results to the database
         """
+        progress = ProgressManager()
         total = len(self.candidate_urls)
         pbar = tqdm(
             enumerate(self.candidate_urls),
             total=total,
             desc="🔍 Searching ...",
         )
-
         if from_iter is None:
-            from_iter = self.progress.load(total=total)
+            from_iter = progress.load(total=total)
 
         for idx, url in enumerate(self.candidate_urls):
             if idx < from_iter:
@@ -201,16 +220,22 @@ class APIKeyLeakageScanner:
                 log.debug("⚪️ Skip %s", url)
                 continue
             self._process_url(url)
-            self.progress.save(idx, total)
+            progress.save(idx, total)
             log.debug("🔍 Finished %s", url)
             pbar.update()
         pbar.close()
 
     def deduplication(self):
+        """
+        Deduplicate the database
+        """
         with self.dbmgr as mgr:
             mgr.deduplicate()
 
     def update_existed_keys(self):
+        """
+        Update previously checked API keys in the database with their current status
+        """
         with self.dbmgr as mgr:
             rich.print("🔄 Updating existed keys")
             keys = mgr.all_keys()
@@ -219,7 +244,22 @@ class APIKeyLeakageScanner:
                 mgr.delete(key[0])
                 mgr.insert(key[0], result)
 
+    def update_iq_keys(self):
+        """
+        Update insuffcient quota keys
+        """
+        with self.dbmgr as mgr:
+            rich.print("🔄 Updating insuffcient quota keys")
+            keys = mgr.all_iq_keys()
+            for key in tqdm(keys, desc="🔄 Updating insuffcient quota keys ..."):
+                result = check_key(key[0])
+                mgr.delete(key[0])
+                mgr.insert(key[0], result)
+
     def all_available_keys(self) -> list:
+        """
+        Get all available keys
+        """
         with self.dbmgr as mgr:
             return mgr.all_keys()
 
@@ -228,16 +268,21 @@ class APIKeyLeakageScanner:
             self.driver.quit()
 
 
-def main(from_iter: int | None = None, check_existed_keys_only: bool = False, keywords: list | None = None, languages: list | None = None):
-    if keywords is None:
-        keywords = KEYWORDS.copy()
-    if languages is None:
-        languages = LANGUAGES.copy()
+def main(from_iter: int | None = None, check_existed_keys_only: bool = False, keywords: list | None = None, languages: list | None = None, check_insuffcient_quota: bool = False):
+    """
+    Main function to scan GitHub for available OpenAI API Keys
+    """
+    keywords = KEYWORDS.copy() if keywords is None else keywords
+    languages = LANGUAGES.copy() if languages is None else languages
+
     leakage = APIKeyLeakageScanner("github.db", keywords, languages)
 
     if not check_existed_keys_only:
         leakage.login_to_github()
         leakage.search(from_iter=from_iter)
+
+    if check_insuffcient_quota:
+        leakage.update_iq_keys()
 
     leakage.update_existed_keys()
     leakage.deduplication()
@@ -265,6 +310,13 @@ if __name__ == "__main__":
         help="Only check existed keys",
     )
     parser.add_argument(
+        "-ciq",
+        "--check-insuffcient-quota",
+        action="store_true",
+        default=False,
+        help="Check and update status of the insuffcient quota keys",
+    )
+    parser.add_argument(
         "-k",
         "--keywords",
         nargs="+",
@@ -288,4 +340,5 @@ if __name__ == "__main__":
         check_existed_keys_only=args.check_existed_keys_only,
         keywords=args.keywords,
         languages=args.languages,
+        check_insuffcient_quota=args.check_insuffcient_quota,
     )
