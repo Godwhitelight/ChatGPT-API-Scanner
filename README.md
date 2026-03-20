@@ -1,11 +1,11 @@
 # ChatGPT-API-Scanner
 
-This tool scans GitHub for available OpenAI API Keys.
+This tool scans GitHub for available OpenAI API Keys using HTTP requests.
 
 ![Result Demo 1](pics/demo.png)
 
 > [!WARNING]
-> **⚠️ DISCLAIMER**
+> **DISCLAIMER**
 >
 > THIS PROJECT IS ONLY FOR ***SECURITY RESEARCH*** AND REMINDS OTHERS TO PROTECT THEIR PROPERTY, DO NOT USE IT ILLEGALLY!!
 >
@@ -28,6 +28,14 @@ It's important to keep it safe to prevent unauthorized access. Here are some use
 
 - [My OpenAI API Key Leaked! What Should I Do?](https://www.gitguardian.com/remediation/openai-key)
 
+## How It Works
+
+This scanner uses a hybrid approach:
+
+- **Search**: Uses Selenium WebDriver to perform GitHub code searches (required because GitHub's search API doesn't support regex)
+- **URL Expansion & Content Fetching**: Uses HTTP requests via `httpcloak` for fast, parallel processing with 10 threads
+- **Raw File Fetching**: Converts GitHub blob URLs to raw.githubusercontent.com for direct content access
+
 ## Prerequisites
 
 This project has been tested and works perfectly on macOS, Windows and WSL2 (see [Run Linux GUI apps on the Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps))
@@ -35,7 +43,7 @@ This project has been tested and works perfectly on macOS, Windows and WSL2 (see
 Ensure you have the following installed on your system:
 
 - Google Chrome
-- Python3
+- Python 3.8+
 
 ## Installation
 
@@ -50,7 +58,7 @@ Ensure you have the following installed on your system:
 2. Install required pypi packages
 
     ```bash
-    pip install selenium tqdm openai rich
+    pip install -r requirements.txt
     ```
 
 ## Usage
@@ -61,7 +69,13 @@ Ensure you have the following installed on your system:
     python3 src/main.py
     ```
 
-2. You will be prompted to log in to your GitHub account in the browser. Please do so.
+2. On first run, you'll be prompted to enter your GitHub session cookies. You need to:
+   - Log in to GitHub in your browser
+   - Open Developer Tools (F12) > Application > Cookies > github.com
+   - Copy the values for: `user_session`, `__Host-user_session_same_site`, `logged_in`, and `_gh_sess`
+   - Paste each value when prompted
+
+   The session is saved locally for future runs.
 
 That's it! The script will now scan GitHub for available OpenAI API Keys.
 
@@ -116,17 +130,17 @@ You can view the contents of this database using any SQLite database browser of 
 
 ## FAQ
 
-**Q: Why are you using Selenium instead of the GitHub Search API?**
+**Q: Why are you using Selenium for search instead of the GitHub Search API?**
 
 A: We use regex search to have the best search results. However, the official GitHub search API does not support regex search, only web-based search does.
+
+**Q: Why use HTTP requests instead of Selenium for everything?**
+
+A: HTTP requests are significantly faster and more resource-efficient. By using `httpcloak` with parallel processing (10 threads), URL expansion and content fetching is much faster than browser-based automation. Search still requires Selenium due to GitHub's anti-bot measures on search pages.
 
 **Q: Why are you limiting the programming language in the search instead of searching all languages?**
 
 A: There are many API keys available. However, the web-based search only provides the first 5 pages of results. By limiting the language, we can break down the search results and obtain more keys.
-
-**Q: Why don't you use multithreading?**
-
-A: Because GitHub searches and OpenAI are rate-limited. Using multithreading does not significantly increase efficiency.
 
 **Q: Why is the API Key provided in your repository not working?**
 
