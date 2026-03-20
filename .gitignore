@@ -3,7 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Sensitive files - DO NOT COMMIT
 cookies.pkl
+session.json
+*.db
 .progress.txt
 # C extensions
 *.so
