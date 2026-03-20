@@ -6,20 +6,20 @@ and database operations.
 
 Classes:
     ProgressManager: Handles progress tracking and persistence
-    CookieManager: Manages browser cookie operations
+    CookieManager: Manages HTTP session cookie operations
     DatabaseManager: Handles database interactions
 """
 
 import logging
 import os
-import pickle
 import sqlite3
 import sys
 import time
 from datetime import date
+from typing import TYPE_CHECKING
 
-from selenium.common.exceptions import UnableToSetCookieException
-from selenium.webdriver.common.by import By
+if TYPE_CHECKING:
+    import httpcloak
 
 LOGGER_NAME = "ChatGPT-API-Leakage"
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -93,61 +93,78 @@ class ProgressManager:
 
 class CookieManager:
     """
-    Manages browser cookie operations.
+    Manages HTTP session cookie operations for httpcloak.
 
     Methods:
-        save: Saves cookies to a file
-        load: Loads cookies from a file
+        save: Saves session to a file
+        load: Loads session from a file
         verify_user_login: Checks if the user is currently logged in
     """
 
-    def __init__(self, driver):
+    SESSION_FILE = "session.json"
+
+    def __init__(self, session: "httpcloak.Session"):
         """
-        Initialize the CookieManager with a Selenium WebDriver instance.
+        Initialize the CookieManager with an httpcloak Session instance.
 
         Args:
-            driver (WebDriver): The Selenium WebDriver for cookie operations.
+            session (httpcloak.Session): The httpcloak session for cookie operations.
         """
-        self.driver = driver
+        self.session = session
 
     def save(self):
         """
-        Save cookies from the current browser session to a file.
+        Save the current session state (cookies, TLS sessions) to a file.
         """
-        cookies = self.driver.get_cookies()
-        with open("cookies.pkl", "wb") as file:
-            pickle.dump(cookies, file)
-            logger.info("🍪 Cookies saved")
+        self.session.save(self.SESSION_FILE)
+        logger.info("🍪 Session saved to %s", self.SESSION_FILE)
 
     def load(self):
         """
-        Load cookies from a file and attempt to add them to the current browser session.
+        Load session state from a file.
         """
         try:
-            with open("cookies.pkl", "rb") as file:
-                cookies = pickle.load(file)
-                for cookie in cookies:
-                    try:
-                        self.driver.add_cookie(cookie)
-                    except UnableToSetCookieException:
-                        logger.debug("🟡 Warning, unable to set a cookie %s", cookie)
-        except (EOFError, pickle.UnpicklingError):
-            if os.path.exists("cookies.pkl"):
-                os.remove("cookies.pkl")
-            logger.error("🔴 Error, unable to load cookies, invalid cookies has been removed, please restart.")
+            import httpcloak
+
+            # Load the session from file and copy cookies to current session
+            loaded_session = httpcloak.Session.load(self.SESSION_FILE)
+            cookies = loaded_session.get_cookies_detailed()
+
+            for cookie in cookies:
+                self.session.set_cookie(
+                    name=cookie.name,
+                    value=cookie.value,
+                    domain=cookie.domain or "",
+                    path=cookie.path or "/",
+                    secure=cookie.secure,
+                    http_only=cookie.http_only,
+                )
+            loaded_session.close()
+            logger.info("🍪 Session loaded from %s", self.SESSION_FILE)
+        except Exception as e:
+            if os.path.exists(self.SESSION_FILE):
+                os.remove(self.SESSION_FILE)
+            logger.error("🔴 Error loading session: %s. Invalid session has been removed, please restart.", e)
 
     def verify_user_login(self):
         """
-        Test if the user is really logged in by navigating to GitHub and checking login status.
+        Test if the user is really logged in by fetching GitHub and checking login status.
         """
-        logger.info("🤗 Redirecting ...")
-        self.driver.get("https://github.com/")
+        logger.info("🤗 Verifying login status ...")
 
-        if self.driver.find_elements(by=By.XPATH, value="//*[contains(text(), 'Sign in')]"):
-            if os.path.exists("cookies.pkl"):
-                os.remove("cookies.pkl")
-            logger.error("🔴 Error, you are not logged in, please restart and try again.")
-            sys.exit(1)
+        response = self.session.get("https://github.com/")
+        html = response.text
+
+        # Check if "Sign in" text is present (indicates not logged in)
+        if "Sign in" in html and 'href="/login"' in html:
+            # Additional check - look for user menu or dashboard elements that indicate logged in state
+            if '<meta name="user-login"' not in html and "dashboard" not in html.lower():
+                if os.path.exists(self.SESSION_FILE):
+                    os.remove(self.SESSION_FILE)
+                logger.error("🔴 Error, you are not logged in, please restart and try again.")
+                sys.exit(1)
+
+        logger.info("✅ Login verified successfully")
         return True
 
 
